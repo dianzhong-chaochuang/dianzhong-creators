@@ -5,14 +5,16 @@ const motionToggle = document.getElementById('motion-toggle');
 const hero = document.querySelector('.hero');
 const heroBackground = document.querySelector('.hero-bg');
 const readingProgress = document.getElementById('reading-progress');
-document.querySelectorAll('.partnership-card, .revenue-grid article, .distribution-rule, .self-investment-rule, .incentive-data, .agreement-list article, .contact-card').forEach(card => card.classList.add('tilt-card', 'motion-surface'));
+document.querySelectorAll('.capability-card, .cooperation-step, .benefit-intro, .revenue-grid article, .distribution-rule, .self-investment-rule, .incentive-data, .agreement-list article, .contact-card').forEach(card => card.classList.add('tilt-card', 'motion-surface'));
 const tiltCards = [...document.querySelectorAll('.tilt-card')];
 const motionControls = [...document.querySelectorAll('button, a[href]:not(.brand):not(.skip)')];
 motionControls.forEach(control => control.classList.add('motion-control'));
-document.querySelectorAll('h2, h3, .hero-description, .section-aside, .principles-title, .card-kicker, .revenue-label, .revenue-caption, .agreement-description, .incentive-intro > p, .rule-lead, .rule-note, .contact-label, .contact-section > div:first-child > p, .investment-heading > p, .managed-value').forEach(element => element.classList.add('motion-copy'));
+document.querySelectorAll('h2, h3, .hero-description, .chapter-heading p, .subsection-heading p, .capability-copy > p, .cooperation-step > p, .benefit-intro p, .revenue-label, .revenue-caption, .incentive-intro > p, .rule-lead, .rule-note, .contact-label, .contact-intro > p').forEach(element => element.classList.add('motion-copy'));
 const pressTimers = new Map();
 let motionEnabled = !reducedMotion.matches;
 let panelAnimations = [];
+const revenueAnimations = new Map();
+const countedRevenue = new WeakSet();
 let scrollFrame;
 let reelController;
 let heroVisible = !hero;
@@ -38,6 +40,14 @@ function pressControl(control) {
   control.classList.add('is-pressed');
   pressTimers.set(control, setTimeout(() => clearPress(control), 220));
 }
+function finishRevenueCount(article) {
+  const active = revenueAnimations.get(article);
+  if (!active) return;
+  revenueAnimations.delete(article);
+  active.animation.cancel();
+  active.overlay.remove();
+  article.classList.remove('revenue-counting');
+}
 function updateScroll() {
   scrollFrame = null;
   const distance = root.scrollHeight - root.clientHeight;
@@ -57,6 +67,8 @@ function setMotion(enabled) {
   if (!enabled) {
     panelAnimations.forEach(animation => animation.cancel());
     panelAnimations = [];
+    revenueAnimations.forEach((active, article) => finishRevenueCount(article));
+    revenueObserver.disconnect();
     tiltCards.forEach(resetTilt);
     motionControls.forEach(resetControl);
     document.querySelectorAll('.will-reveal, main > section').forEach(element => element.classList.add('in-view'));
@@ -76,6 +88,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     cancelAnimationFrame(scrollFrame);
     scrollFrame = null;
+    panelAnimations.forEach(animation => animation.cancel());
+    panelAnimations = [];
+    revenueAnimations.forEach((active, article) => finishRevenueCount(article));
     tiltCards.forEach(resetTilt);
     motionControls.forEach(resetControl);
   } else requestScrollUpdate();
@@ -86,29 +101,17 @@ window.addEventListener('blur', () => {
   motionControls.forEach(resetControl);
 });
 
-['.partnership-grid', '.revenue-grid', '.distribution-rules', '.agreement-list', '.contact-section'].forEach(selector => {
-  const group = document.querySelector(selector);
-  if (!group) return;
-  group.removeAttribute('data-reveal');
-  [...group.children].forEach((element, index) => {
-    element.setAttribute('data-reveal', '');
-    element.style.setProperty('--reveal-delay', `${Math.min(index * 100, 240)}ms`);
-  });
+document.querySelectorAll('.chapter-heading, .subsection-heading, .capability-card, .cooperation-step, .benefit-intro, .revenue-grid > article, .distribution-rule, .self-investment-rule, .agreement-list > article, .contact-intro, .contact-card, .incentive-tabs, .site-footer').forEach(element => element.setAttribute('data-reveal', ''));
+document.querySelectorAll('.incentive-panel:not([hidden]) > .incentive-intro, .incentive-panel:not([hidden]) > .incentive-data').forEach(element => element.setAttribute('data-reveal', ''));
+document.querySelectorAll('[data-reveal]').forEach(element => {
+  if (element.querySelector('[data-reveal]')) {
+    element.removeAttribute('data-reveal');
+    element.style.removeProperty('--reveal-delay');
+  }
 });
-document.querySelectorAll('.section-heading').forEach(heading => {
-  heading.removeAttribute('data-reveal');
-  [...heading.children].forEach((element, index) => {
-    element.setAttribute('data-reveal', '');
-    element.style.setProperty('--reveal-delay', `${Math.min(index * 100, 240)}ms`);
-  });
-});
-const agreementLayout = document.querySelector('.agreement-layout');
-agreementLayout?.removeAttribute('data-reveal');
-agreementLayout?.firstElementChild?.setAttribute('data-reveal', '');
-document.querySelectorAll('.incentive-tabs, .principles, .site-footer').forEach(element => element.setAttribute('data-reveal', ''));
-document.querySelectorAll('.incentive-panel:not([hidden]) > .incentive-intro, .incentive-panel:not([hidden]) > .incentive-data').forEach((element, index) => {
-  element.setAttribute('data-reveal', '');
-  element.style.setProperty('--reveal-delay', `${index * 100}ms`);
+document.querySelectorAll('[data-reveal]').forEach(element => {
+  const siblings = [...element.parentElement.children].filter(item => item.hasAttribute('data-reveal'));
+  element.style.setProperty('--reveal-delay', `${Math.min(siblings.indexOf(element) * 100, 240)}ms`);
 });
 
 const revealObserver = new IntersectionObserver(entries => {
@@ -127,6 +130,55 @@ document.querySelectorAll('main > section').forEach(section => {
   if (!motionEnabled) section.classList.add('in-view');
   else revealObserver.observe(section);
 });
+const cooperationFlow = document.querySelector('.cooperation-steps');
+if (cooperationFlow) new IntersectionObserver(([entry]) => {
+  cooperationFlow.classList.toggle('flow-visible', entry.isIntersecting);
+}, { threshold: 0 }).observe(cooperationFlow);
+const revenueObserver = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (!entry.isIntersecting || countedRevenue.has(entry.target)) return;
+    const article = entry.target;
+    countedRevenue.add(article);
+    revenueObserver.unobserve(article);
+    if (!motionEnabled || document.hidden) return;
+    const number = article.querySelector('.revenue-number');
+    if (!number) return;
+    const overlay = document.createElement('span');
+    overlay.className = 'revenue-roll';
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.textContent = number.firstChild.textContent.trim();
+    number.append(overlay);
+    article.classList.add('revenue-counting');
+    const animation = overlay.animate([
+      { opacity: 0, transform: 'translateY(60%) rotateX(-50deg)', filter: 'blur(5px)' },
+      { opacity: 0.85, transform: 'translateY(0) rotateX(0)', filter: 'blur(0)', offset: 0.65 },
+      { opacity: 0, transform: 'translateY(0) rotateX(0)', filter: 'blur(0)' }
+    ], { duration: 800, easing: 'cubic-bezier(.2,.7,.2,1)' });
+    revenueAnimations.set(article, { animation, overlay });
+    animation.onfinish = animation.oncancel = () => finishRevenueCount(article);
+  });
+}, { threshold: 0.35 });
+if (motionEnabled) document.querySelectorAll('.revenue-grid article').forEach(article => revenueObserver.observe(article));
+const chapters = [...document.querySelectorAll('.chapter[id]')];
+const chapterLinks = [...document.querySelectorAll('.site-header nav a, .journey-nav a')];
+let chapterObserver;
+function observeChapters() {
+  chapterObserver?.disconnect();
+  const line = Math.max(0, Math.min(innerHeight - 1, (parseFloat(getComputedStyle(root).scrollPaddingTop) || 0) + 1));
+  chapterObserver = new IntersectionObserver(() => {
+    const current = chapters.find(chapter => {
+      const bounds = chapter.getBoundingClientRect();
+      return bounds.top <= line + 1 && bounds.bottom > line + 1;
+    });
+    chapterLinks.forEach(link => {
+      if (current && link.getAttribute('href') === `#${current.id}`) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    });
+  }, { rootMargin: `-${line}px 0px -${Math.max(0, innerHeight - line - 1)}px 0px`, threshold: 0 });
+  chapters.forEach(chapter => chapterObserver.observe(chapter));
+}
+observeChapters();
+window.addEventListener('resize', observeChapters);
 if (hero) new IntersectionObserver(([entry]) => {
   heroVisible = entry.isIntersecting;
   hero.classList.toggle('is-outside', !entry.isIntersecting);
@@ -264,7 +316,7 @@ if (posterReel) {
 }
 
 tiltCards.forEach(card => {
-  const tilt = card.matches('.contact-card') ? 0 : card.matches('.partnership-card') ? 5 : 2;
+  const tilt = card.matches('.contact-card') ? 0 : 2;
   card.addEventListener('pointermove', event => {
     if (!motionEnabled || !finePointer.matches || event.pointerType === 'touch') return;
     const bounds = card.getBoundingClientRect();
@@ -307,8 +359,10 @@ motionControls.forEach(button => {
 });
 
 const tabs = [...document.querySelectorAll('[role="tab"]')];
-function selectTab(tab) {
+function selectTab(tab, direction) {
   if (tab.getAttribute('aria-selected') === 'true') return;
+  const previousIndex = tabs.findIndex(item => item.getAttribute('aria-selected') === 'true');
+  const offset = (direction || Math.sign(tabs.indexOf(tab) - previousIndex) || 1) * 18;
   panelAnimations.forEach(animation => animation.cancel());
   panelAnimations = [];
   tabs.forEach(item => {
@@ -325,10 +379,18 @@ function selectTab(tab) {
     element.classList.add('in-view');
     element.style.removeProperty('--reveal-delay');
   });
-  if (motionEnabled) panelAnimations = [...panel.querySelectorAll('.incentive-intro, .incentive-data')].map((element, index) => element.animate([
-    { opacity: 0, transform: 'translateY(18px)' },
-    { opacity: 1, transform: 'translateY(0)' }
-  ], { duration: 450, delay: index * 80, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'backwards' }));
+  if (motionEnabled && !document.hidden) {
+    panelAnimations = [...panel.querySelectorAll('.incentive-intro, .incentive-data')].map((element, index) => element.animate([
+      { opacity: 0, transform: `translateX(${offset}px)` },
+      { opacity: 1, transform: 'translateX(0)' }
+    ], { duration: 400, delay: index * 45, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'backwards' }));
+    panel.querySelectorAll('.incentive-data tbody tr').forEach((row, index) => {
+      panelAnimations.push(row.animate([
+        { opacity: 0.3, transform: `translateX(${offset / 2}px)` },
+        { opacity: 1, transform: 'translateX(0)' }
+      ], { duration: 260, delay: 75 + index * 40, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'backwards' }));
+    });
+  }
   requestScrollUpdate();
 }
 tabs.forEach((tab, index) => {
@@ -337,7 +399,7 @@ tabs.forEach((tab, index) => {
     const nextIndex = { ArrowRight: (index + 1) % tabs.length, ArrowLeft: (index + tabs.length - 1) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
     if (nextIndex == null) return;
     event.preventDefault();
-    selectTab(tabs[nextIndex]);
+    selectTab(tabs[nextIndex], event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : undefined);
     tabs[nextIndex].focus();
   });
 });
